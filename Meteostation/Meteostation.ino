@@ -47,7 +47,7 @@ void setup() {
         for (;;);
     }
 
-    if (rtc.lostPower() || digitalRead(buttonPin) == LOW) { 
+    if (rtc.lostPower()) { 
         Serial.println("Setting RTC to compile time...");
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
         Serial.println("RTC updated!");
