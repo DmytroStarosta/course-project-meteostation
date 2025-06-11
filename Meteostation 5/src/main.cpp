@@ -1,73 +1,50 @@
 #include <Arduino.h>
-
+#include <WebServer.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <DHT.h>
+
+#include "../include/initPins.h"
 #include "../include/config.h"
+#include "../include/initServer.h"
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-
-#define DHTPIN 18   
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
-
-
+extern WebServer server;
+extern LiquidCrystal_I2C lcd;
+extern DHT dht;
+extern void updateDatabase(float temp, float humidity);
+extern void updateDisplay(float temp, float humidity);
 volatile bool buttonPressed = false;
-unsigned long lastTime = 0;
-const long debounceTime = 200;
+uint32_t lastProgramTime = 0; // Yurii del
 
-byte degreeChar[] = {
-    B00111, B00101, B00111, B00000,
-    B00000, B00000, B00000, B00000
-};
+uint8_t displayState = 0;
 
-void IRAM_ATTR buttonFunc() {
-    buttonPressed = true;
-}
+float lastTemp = 0;
+float lastHumidity = 0;
 
-void setup() {
-    pinMode(buttonPin, INPUT_PULLUP);
+void setup()
+{
     Serial.begin(115200);
-    dht.begin();
-    
-    Wire.begin(21, 22);
-    lcd.init();
-    lcd.backlight();
-
-    lcd.createChar(0, degreeChar);
-
-    attachInterrupt(digitalPinToInterrupt(buttonPin), buttonFunc, FALLING);
-    lcd.clear();
+    initPins();
+    initServer();
 }
 
-void loop() {
-    static uint8_t displayState = 0;
+void loop()
+{
+    server.handleClient();
     float temp = dht.readTemperature();
     float humidity = dht.readHumidity();
 
-    if (buttonPressed) {
-        unsigned long nowTime = millis();
-        if (nowTime - lastTime > debounceTime) {
-            displayState = (displayState + 1) % 2;
-            lcd.clear();
-            lastTime = nowTime;
-        }
+    if (buttonPressed)
+    {
+        displayState = (displayState + 1) % 2;
         buttonPressed = false;
     }
 
-    lcd.setCursor(2, 0);
-    if (displayState == 0) {
-        lcd.print("Temperature:");
-        lcd.setCursor(5, 1);
-        lcd.print(temp);
-        lcd.write(byte(0));
-        lcd.print("C   ");
-    } else {
-        lcd.print("Humidity:");
-        lcd.setCursor(5, 1);
-        lcd.print(humidity);
-        lcd.print("%   ");
+    if (lastTemp - temp > 0.2 || lastTemp - temp < -0.2 || lastHumidity - humidity > 0.2 || lastHumidity - humidity < -0.2)
+    {
+        lastTemp = temp;
+        lastHumidity = humidity;
+        updateDatabase(temp, humidity);
+        updateDisplay(temp, humidity);
     }
-
-    delay(500);
 }
